@@ -1,0 +1,140 @@
+---
+title: "Assignment 2 Parallel Computing"
+author: "Yastika Motilal"
+format: html
+editor: visual
+---
+
+## Question 1
+
+```{r}
+library(foreach)
+x <- foreach(i = 1:100, .combine = "c") %do% rexp(100, 1)
+meanx <- mean(x) # 1.0094
+varx <- var(x) # 1.025809
+rbind(mean = meanx, variance =varx)
+```
+
+# Question 2
+
+```{r}
+library(doParallel)
+library(MASS)
+```
+
+#### Serial Bootstrapping
+
+```{r}
+med.boot <- function() {
+  resample <- sample(galaxies, size = length(galaxies), replace = TRUE)
+  return(median(resample))  
+}
+system.time(bootsamples <- replicate(10000, med.boot()))
+```
+
+#### Parallel Bootstrapping
+
+```{r}
+num_cores <- detectCores() - 1 
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)  
+system.time(boot_medians_parallel <- foreach(i = 1:10000, .combine = c, .packages = 'MASS') %dopar% {
+  med.boot()
+})
+stopCluster(cl)
+```
+
+#### Experimenting with 1000 bootstrap samples at a time
+
+```{r}
+num_batches <- 10000 / 1000 
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+system.time(med.boot.exp <- foreach(batch = 1:num_batches, .combine = c, .packages = 'MASS') %dopar% {
+  replicate(1000, med.boot())
+})
+stopCluster(cl)
+```
+
+What we can see is that when doing the serial bootstrapping, it was actually faster for managing single bootstrap samples compared to parallel bootstrapping, but when I tried to do 1000 bootstrap samples at a time, the time it took to compute is far less compared to serial bootstrapping as well as parallel bootstrapping with a single sample.
+
+# Question 3
+
+```{r}
+library(boot)
+bootstrap_ci <- function(n = 50, B = 1000, alpha = 0.05) {
+  sample_data <- rexp(n, rate = 1)  
+  boot_mean <- function(data, indices) {
+    return(mean(data[indices])) 
+  }
+  boot_results <- boot(data = sample_data, statistic = boot_mean, R = B)
+  ci <- boot.ci(boot_results, type = "perc", conf = 1 - alpha)$percent[4:5]
+  return(ci)
+}
+num_simulations <- 10000 
+n <- 50  
+true_mean <- 1  
+coverage_results <- replicate(num_simulations, {
+  ci <- bootstrap_ci(n = n)
+  return(true_mean >= ci[1] && true_mean <= ci[2])  
+})
+# The coverage probability
+coverage <- mean(coverage_results)
+```
+
+The coverage probability is: `r round(coverage, 2)`
+
+# Question 4
+
+```{r}
+library(iterators)
+set.seed(1234)
+iter_obj <- irnorm(5)
+max_values <- foreach(i = 1:3, .combine = c) %do% {
+  max(nextElem(iter_obj))  
+}
+print(max_values, digits = 3)
+
+```
+
+# Question 5
+
+```{r}
+num_reps <- 1000  
+```
+
+#### Using replicate()
+
+```{r}
+system.time({
+  results_replicate <- replicate(num_reps, {
+    max(nextElem(irnorm(5)))  
+  })
+})
+```
+
+#### Using foreach()
+
+```{r}
+system.time({
+  results_foreach <- foreach(i = 1:num_reps, .combine = c) %do% {
+    max(nextElem(irnorm(5)))
+  }
+})
+```
+
+#### Using parapply()
+
+```{r, warning=FALSE, message=FALSE}
+num_cores <- detectCores() - 1
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+clusterExport(cl, c("irnorm", "nextElem"))
+get_max_irnorm <- function(i) {
+  max(nextElem(irnorm(5)))
+}
+system.time({
+  results_parLapply <- parLapply(cl, 1:1000, get_max_irnorm)
+})
+stopCluster(cl)
+```
