@@ -5,7 +5,11 @@ format: html
 editor: visual
 ---
 
-## Question 1
+## My Github Repository
+
+My GitHub repository: <https://github.com/YastikaMotilal/Peer-Assessed-Practical-2>
+
+# Question 1
 
 ```{r}
 library(foreach)
